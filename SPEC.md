@@ -1,8 +1,8 @@
-# vokabeltest-app3 — Advanced Vocabulary Learning Platform
+# vokabeltest-app3 v1.2 — Backend Fixes Applied
 
 ## Overview
 
-A sophisticated vocabulary learning application that leverages AI to extract vocabulary from photographs of English textbook pages, store them in a database, and provide interactive testing capabilities.
+A vocabulary learning application that uses AI to extract vocabulary from photos of English textbook pages, store them in SQLite, and provide quiz-based practice. This iteration refreshes the pipeline around two backend constraints: a strict `4 MB` upload limit and a functional `30 s` timeout for KI extraction requests.
 
 ## Technical Requirements
 
@@ -24,6 +24,8 @@ A sophisticated vocabulary learning application that leverages AI to extract voc
    - Send to selected AI provider via API
    - Extract vocabulary terms and definitions
    - Validate extraction quality
+   - Reject payloads larger than `4 MB`
+   - Abort upstream KI extraction requests after `30 s`
 
 3. **Vocabulary Database**
    - Store extracted vocabulary (term, definition, source, timestamp)
@@ -51,22 +53,23 @@ GET    /health            - Health check
 
 ## Deployment
 
-- **Port:** 3115
+- **Port:** 3120
 - **PM2 Configuration:** Standard node deployment
-- **Environment:** Production deployment (real PM2, not dry-run)
+- **Environment:** Production deployment
 
 ## Acceptance Criteria
 
 - [x] Spec complete and reviewed
-- [ ] Build: npm install, npm run build successful
-- [ ] Verify: All tests passing, health check OK, API endpoints functional
+- [ ] Build: Backend enforces `4 MB` upload limit and `30 s` KI extraction timeout
+- [ ] Verify: `npm audit` passes and runtime smoke checks stay green on port `3120`
 - [ ] Review: Code gate passed
-- [ ] Deploy: GitHub push successful, PM2 deployment live on port 3115
+- [ ] Deploy: GitHub push successful, PM2 deployment live on port 3120
 - [ ] Report: Pipeline artifacts complete, status = completed
 
 ## Notes
 
 - API keys are session-based only (no persistence)
-- Image upload size limit: 5MB
+- Image upload size limit: 4MB
 - AI extraction timeout: 30s per request
 - SQLite database: stored in `data/vocab.db`
+- This start run is a pipeline refresh for iteration `v1.2`, not a greenfield scaffold

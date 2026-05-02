@@ -12,6 +12,8 @@ const distDir = path.join(appRoot, "dist");
 const dataDir = path.join(appRoot, "data");
 const databasePath = path.join(dataDir, "vocab.db");
 const port = Number.parseInt(process.env.PORT ?? "3120", 10) || 3120;
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const EXTRACT_TIMEOUT_MS = 30_000;
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -32,7 +34,7 @@ await db.exec(`
 
 const app = express();
 
-app.use(express.json({ limit: "4mb" }));
+app.use(express.json({ limit: "6mb" }));
 
 app.get("/health", async (_req, res) => {
   const row = await db.get("SELECT COUNT(*) AS count FROM vocabulary");
@@ -137,7 +139,7 @@ app.post("/api/extract", async (req, res) => {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), EXTRACT_TIMEOUT_MS);
 
   try {
     const items = await extractVocabularyWithProvider(validation.value, controller.signal);
@@ -218,6 +220,7 @@ function validateExtractPayload(body) {
   const provider = String(body.provider ?? "").trim().toLowerCase();
   const apiKey = String(body.apiKey ?? "").trim();
   const filename = String(body.filename ?? "upload").trim() || "upload";
+  const mimeType = String(body.mimeType ?? "image/jpeg").trim() || "image/jpeg";
   const imageBase64 = String(body.imageBase64 ?? "").trim();
 
   if (!["openai", "claude", "gemini"].includes(provider)) {
@@ -232,13 +235,22 @@ function validateExtractPayload(body) {
     return { ok: false, error: "imageBase64 is required." };
   }
 
+  if (!mimeType.startsWith("image/")) {
+    return { ok: false, error: "mimeType must describe an image upload." };
+  }
+
+  const imageBytes = Buffer.byteLength(imageBase64, "base64");
+  if (imageBytes > MAX_UPLOAD_BYTES) {
+    return { ok: false, error: "Image upload exceeds the 4 MB limit." };
+  }
+
   return {
     ok: true,
-    value: { provider, apiKey, filename, imageBase64 },
+    value: { provider, apiKey, filename, mimeType, imageBase64 },
   };
 }
 
-async function extractVocabularyWithProvider({ provider, apiKey, imageBase64 }, signal) {
+async function extractVocabularyWithProvider({ provider, apiKey, mimeType, imageBase64 }, signal) {
   const prompt =
     "Extract English vocabulary from this textbook page. Return only JSON as an array of objects with term and definition.";
 
@@ -259,7 +271,7 @@ async function extractVocabularyWithProvider({ provider, apiKey, imageBase64 }, 
               { type: "input_text", text: prompt },
               {
                 type: "input_image",
-                image_url: `data:image/jpeg;base64,${imageBase64}`,
+                image_url: `data:${mimeType};base64,${imageBase64}`,
               },
             ],
           },
@@ -293,7 +305,7 @@ async function extractVocabularyWithProvider({ provider, apiKey, imageBase64 }, 
                 type: "image",
                 source: {
                   type: "base64",
-                  media_type: "image/jpeg",
+                  media_type: mimeType,
                   data: imageBase64,
                 },
               },
@@ -330,7 +342,7 @@ async function extractVocabularyWithProvider({ provider, apiKey, imageBase64 }, 
               { text: prompt },
               {
                 inline_data: {
-                  mime_type: "image/jpeg",
+                  mime_type: mimeType,
                   data: imageBase64,
                 },
               },
@@ -383,3 +395,11 @@ function parseProviderJson(text) {
 function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+app.use((error, _req, res, next) => {
+  if (error?.type === "entity.too.large") {
+    return res.status(413).json({ error: "Image upload exceeds the 4 MB limit." });
+  }
+
+  return next(error);
+});
