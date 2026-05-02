@@ -1,0 +1,22 @@
+{
+  "name": "vokabeltest-app3",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/backend/server.js",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.8"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.21"
+  }
+}
